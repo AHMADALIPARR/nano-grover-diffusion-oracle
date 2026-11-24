@@ -1,6 +1,6 @@
 # Nano-Grover Diffusion & Oracle Iteration Circuit
 
-Formal synthesis and verification of analog **Nano-Grover** circuits, trigonometric braid processors, and their quantum / digital duals.
+Formal synthesis and verification of analog **Nano-Grover** circuits, trigonometric braid processors, SPARK contracts, and their quantum / digital duals.
 
 ## Contents
 
@@ -31,11 +31,25 @@ Formal synthesis and verification of analog **Nano-Grover** circuits, trigonomet
 | `rtl/quantum/q_braid_chord_rom.sv` | Amplitude-encoded 2-qubit look-up from chord eigenvalues |
 | `rtl/quantum/q_grover_flop_stage.sv` | Single Grover iteration in flip-flop amplitude registers |
 
+### Ada SPARK Contracts
+
+| File | Description |
+|------|-------------|
+| `spark/nano_grover_contracts.ads/.adb` | Bounded rails, oracle/diffusion, braid matrix, integrity mix |
+| `spark/braid_chord_contracts.ads/.adb` | Chord frequency look-up contracts (flop-ROM dual) |
+
+### Inverted DAE Graph (XML)
+
+| File | Description |
+|------|-------------|
+| `graph/dae_inverted_graph.xml` | Tree-structured inversion of SPARK `{Pre} Cmd {Post}` into continuous DAE nodes/edges |
+
 ### Formal / Documentation
 
 - `lean/NanoGroverMarkov.lean` — Zero-dependency Lean 4 Markov verification
 - `docs/CIRCUIT_THEOREM.md` — Analytic energy & amplification theorem
 - `docs/CROSS_DOMAIN_MAPPING.md` — SPARK ↔ Verilog-A ↔ Transistor mapping
+- `docs/SPARK_TO_DAE_INVERSION.md` — Formal inversion principle and semiconductor bounds
 
 ## Cross-Domain Mapping (summary)
 
