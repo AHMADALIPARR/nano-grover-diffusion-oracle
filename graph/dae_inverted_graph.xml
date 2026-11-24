@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  License-ID: SL-AGPL3-001 | Covenant-Version: 1.0
+  SPDX-License-Identifier: LicenseRef-Sovereign-Leviathan-SL-AGPL3-001
+  Main project policy: LICENSES/LicenseRef-Sovereign-Leviathan-SL-AGPL3-001.txt.
+
+  Inverted DAE Graph
+  ------------------
+  Formal inversion of SPARK contracts {Pre(S)} Cmd {Post(S,S')}
+  into a continuous-time Differential-Algebraic Equation system.
+
+  Node kinds:
+    - state     : continuous voltage / amplitude state variable
+    - algebraic : constraint (KCL / KVL / mean bus)
+    - rail      : physical clamping bound (maps Bounded Integer)
+    - contract  : SPARK pre/post predicate attached to a transition
+
+  Edge kinds:
+    - ddt       : differential contribution (C·dV/dt)
+    - idt       : integral contribution (L·idt)
+    - kcl       : Kirchhoff current law balance
+    - kvl       : Kirchhoff voltage law loop
+    - map       : discrete-to-continuous invariant mapping
+    - clamp     : hard rail / saturation limit
+-->
+
+<DAEInvertedGraph
+    xmlns="urn:sovereign:nano-grover:dae-graph:1.0"
+    name="NanoGrover_Braid_DAE"
+    version="1.0"
+    inversionPrinciple="SPARK_PrePost_to_Continuous_Attractors">
+
+  <!-- ============================================================ -->
+  <!-- 1. State nodes (continuous voltages / amplitudes)            -->
+  <!-- ============================================================ -->
+  <Nodes>
+
+    <Node id="V0" kind="state" domain="voltage">
+      <Label>Basis amplitude |00⟩ / node 0</Label>
+      <InitialCharge mapsFrom="Pre(S)">0.5</InitialCharge>
+      <Attractor mapsTo="Post(S,S')">steady-state after diffusion</Attractor>
+      <Bound rail="Voltage_Rail" min="0.0" max="1.8"/>
+    </Node>
+
+    <Node id="V1" kind="state" domain="voltage">
+      <Label>Basis amplitude |01⟩ / node 1</Label>
+      <InitialCharge mapsFrom="Pre(S)">0.5</InitialCharge>
+      <Attractor mapsTo="Post(S,S')">steady-state after diffusion</Attractor>
+      <Bound rail="Voltage_Rail" min="0.0" max="1.8"/>
+    </Node>
+
+    <Node id="V2" kind="state" domain="voltage">
+      <Label>Basis amplitude |10⟩ / node 2</Label>
+      <InitialCharge mapsFrom="Pre(S)">0.5</InitialCharge>
+      <Attractor mapsTo="Post(S,S')">steady-state after diffusion</Attractor>
+      <Bound rail="Voltage_Rail" min="0.0" max="1.8"/>
+    </Node>
+
+    <Node id="V3" kind="state" domain="voltage">
+      <Label>Basis amplitude |11⟩ / node 3 (default target ω)</Label>
+      <InitialCharge mapsFrom="Pre(S)">0.5</InitialCharge>
+      <Attractor mapsTo="Post(S,S')">amplified |Vω|² ≥ 1 − 1/N</Attractor>
+      <Bound rail="Voltage_Rail" min="0.0" max="1.8"/>
+    </Node>
+
+    <Node id="Vbar" kind="algebraic" domain="voltage">
+      <Label>Ensemble mean  V̄ = (1/N) Σ Vk</Label>
+      <Equation>Vbar = (V0 + V1 + V2 + V3) / 4.0</Equation>
+    </Node>
+
+    <Node id="I_NDR_3" kind="state" domain="current">
+      <Label>Oracle NDR current on target branch</Label>
+      <Equation>I = (1/Rndr)·(−1.5·V3 + 0.5·V3³/V0²)</Equation>
+    </Node>
+
+    <Node id="Theta" kind="state" domain="angle">
+      <Label>Braid phase θ</Label>
+      <Bound min="-π" max="π" mapsFrom="Bounded Integer Range"/>
+    </Node>
+
+    <Node id="Sin_O" kind="state" domain="voltage">
+      <Label>φ-weighted sin output</Label>
+      <Bound rail="Voltage_Rail" min="0.0" max="1.8"/>
+    </Node>
+
+    <Node id="Cos_O" kind="state" domain="voltage">
+      <Label>φ-weighted cos output</Label>
+      <Bound rail="Voltage_Rail" min="0.0" max="1.8"/>
+    </Node>
+
+    <!-- Physical rails (SPARK Bounded Integer → Supply clamping) -->
+    <Node id="RAIL_VDD" kind="rail" domain="supply">
+      <Label>Positive supply rail</Label>
+      <Value>1.8</Value>
+      <MapsFrom contract="Voltage_Rail'Last"/>
+    </Node>
+
+    <Node id="RAIL_GND" kind="rail" domain="supply">
+      <Label>Ground / zero rail</Label>
+      <Value>0.0</Value>
+      <MapsFrom contract="Voltage_Rail'First"/>
+    </Node>
+
+    <!-- SPARK contract anchor nodes -->
+    <Node id="CTRCT_Oracle" kind="contract">
+      <Label>Grover_Oracle_Flip Pre/Post</Label>
+      <Pre>for all I =&gt; V(I) in Voltage_Rail</Pre>
+      <Post>V(Target) = −V'Old(Target) ∧ others unchanged ∧ still in Voltage_Rail</Post>
+      <Cmd>sign-flip on target coordinate</Cmd>
+    </Node>
+
+    <Node id="CTRCT_Diffusion" kind="contract">
+      <Label>Grover_Diffusion Pre/Post</Label>
+      <Pre>for all I =&gt; V(I) in Voltage_Rail</Pre>
+      <Post>for all I =&gt; V(I) in Voltage_Rail  (nodal balance dV/dt → 0)</Post>
+      <Cmd>V ← 2·Vbar − V</Cmd>
+    </Node>
+
+    <Node id="CTRCT_Braid" kind="contract">
+      <Label>Braid_Matrix_Multiply Pre/Post</Label>
+      <Pre>Theta in −π .. π</Pre>
+      <Post>Sin_O in Voltage_Rail ∧ Cos_O in Voltage_Rail</Post>
+      <Cmd>φ-weighted linear combination</Cmd>
+    </Node>
+
+  </Nodes>
+
+  <!-- ============================================================ -->
+  <!-- 2. Edges (DAE structure + invariant mappings)                -->
+  <!-- ============================================================ -->
+  <Edges>
+
+    <!-- Capacitive ddt edges -->
+    <Edge id="e_ddt0" kind="ddt" from="V0" to="V0">
+      <Contribution>Cnode · ddt(V0)</Contribution>
+    </Edge>
+    <Edge id="e_ddt1" kind="ddt" from="V1" to="V1">
+      <Contribution>Cnode · ddt(V1)</Contribution>
+    </Edge>
+    <Edge id="e_ddt2" kind="ddt" from="V2" to="V2">
+      <Contribution>Cnode · ddt(V2)</Contribution>
+    </Edge>
+    <Edge id="e_ddt3" kind="ddt" from="V3" to="V3">
+      <Contribution>Cnode · ddt(V3)</Contribution>
+    </Edge>
+
+    <!-- Inductive idt edges -->
+    <Edge id="e_idt0" kind="idt" from="V0" to="V0">
+      <Contribution>idt(−V0 / Lnode)</Contribution>
+    </Edge>
+    <Edge id="e_idt1" kind="idt" from="V1" to="V1">
+      <Contribution>idt(−V1 / Lnode)</Contribution>
+    </Edge>
+    <Edge id="e_idt2" kind="idt" from="V2" to="V2">
+      <Contribution>idt(−V2 / Lnode)</Contribution>
+    </Edge>
+    <Edge id="e_idt3" kind="idt" from="V3" to="V3">
+      <Contribution>idt(−V3 / Lnode)</Contribution>
+    </Edge>
+
+    <!-- Mean bus algebraic edges (KCL star) -->
+    <Edge id="e_mean0" kind="kcl" from="V0" to="Vbar"/>
+    <Edge id="e_mean1" kind="kcl" from="V1" to="Vbar"/>
+    <Edge id="e_mean2" kind="kcl" from="V2" to="Vbar"/>
+    <Edge id="e_mean3" kind="kcl" from="V3" to="Vbar"/>
+
+    <!-- Oracle NDR on target -->
+    <Edge id="e_ndr" kind="kcl" from="I_NDR_3" to="V3">
+      <Contribution>cubic NDR phase inversion</Contribution>
+    </Edge>
+
+    <!-- Diffusion reflection (post-condition attractor) -->
+    <Edge id="e_diff0" kind="map" from="Vbar" to="V0">
+      <Contribution>V0 ← 2·Vbar − V0</Contribution>
+      <ContractRef>CTRCT_Diffusion</ContractRef>
+    </Edge>
+    <Edge id="e_diff1" kind="map" from="Vbar" to="V1">
+      <Contribution>V1 ← 2·Vbar − V1</Contribution>
+      <ContractRef>CTRCT_Diffusion</ContractRef>
+    </Edge>
+    <Edge id="e_diff2" kind="map" from="Vbar" to="V2">
+      <Contribution>V2 ← 2·Vbar − V2</Contribution>
+      <ContractRef>CTRCT_Diffusion</ContractRef>
+    </Edge>
+    <Edge id="e_diff3" kind="map" from="Vbar" to="V3">
+      <Contribution>V3 ← 2·Vbar − V3</Contribution>
+      <ContractRef>CTRCT_Diffusion</ContractRef>
+    </Edge>
+
+    <!-- Oracle contract attachment -->
+    <Edge id="e_oracle" kind="map" from="CTRCT_Oracle" to="V3">
+      <Contribution>sign flip on target</Contribution>
+    </Edge>
+
+    <!-- Braid trigonometric path -->
+    <Edge id="e_braid_sin" kind="map" from="Theta" to="Sin_O">
+      <Contribution>PHI_HALF·sin(θ) + 0.5·cos(θ)</Contribution>
+      <ContractRef>CTRCT_Braid</ContractRef>
+    </Edge>
+    <Edge id="e_braid_cos" kind="map" from="Theta" to="Cos_O">
+      <Contribution>0.5·sin(θ) − PHI_HALF·cos(θ)</Contribution>
+      <ContractRef>CTRCT_Braid</ContractRef>
+    </Edge>
+
+    <!-- Hard clamping rails (assertion failure → physical limit) -->
+    <Edge id="e_clamp_hi0" kind="clamp" from="RAIL_VDD" to="V0"/>
+    <Edge id="e_clamp_lo0" kind="clamp" from="RAIL_GND" to="V0"/>
+    <Edge id="e_clamp_hi1" kind="clamp" from="RAIL_VDD" to="V1"/>
+    <Edge id="e_clamp_lo1" kind="clamp" from="RAIL_GND" to="V1"/>
+    <Edge id="e_clamp_hi2" kind="clamp" from="RAIL_VDD" to="V2"/>
+    <Edge id="e_clamp_lo2" kind="clamp" from="RAIL_GND" to="V2"/>
+    <Edge id="e_clamp_hi3" kind="clamp" from="RAIL_VDD" to="V3"/>
+    <Edge id="e_clamp_lo3" kind="clamp" from="RAIL_GND" to="V3"/>
+    <Edge id="e_clamp_sin" kind="clamp" from="RAIL_VDD" to="Sin_O"/>
+    <Edge id="e_clamp_cos" kind="clamp" from="RAIL_VDD" to="Cos_O"/>
+
+  </Edges>
+
+  <!-- ============================================================ -->
+  <!-- 3. Cross-domain mapping table (embedded for traceability)    -->
+  <!-- ============================================================ -->
+  <CrossDomainMappings>
+    <Mapping>
+      <SPARK>Bounded Integer Range (0 ≤ v ≤ N)</SPARK>
+      <VerilogA>Voltage Rails (0 V to V_dd)</VerilogA>
+      <Transistor>Supply clamping and saturation limits</Transistor>
+    </Mapping>
+    <Mapping>
+      <SPARK>State Invariant (Post(S, S'))</SPARK>
+      <VerilogA>Steady-state nodal balance (dV/dt = 0)</VerilogA>
+      <Transistor>Equilibrium collector/drain current balance</Transistor>
+    </Mapping>
+    <Mapping>
+      <SPARK>Matrix Multiplier (ρ(σ_k))</SPARK>
+      <VerilogA>Linear VCVS</VerilogA>
+      <Transistor>Gilbert cell / Translinear multiplier core</Transistor>
+    </Mapping>
+    <Mapping>
+      <SPARK>FNV-1a / Hash Integrity</SPARK>
+      <VerilogA>Non-linear mixing stage</VerilogA>
+      <Transistor>Cross-coupled mixer core with exponential response</Transistor>
+    </Mapping>
+  </CrossDomainMappings>
+
+  <!-- ============================================================ -->
+  <!-- 4. Semiconductor bound annotations                           -->
+  <!-- ============================================================ -->
+  <SemiconductorBounds>
+    <Bound name="ThermalVoltage">
+      <Symbol>V_T</Symbol>
+      <Value unit="mV">25.85</Value>
+      <Note>Translinear loops constrained by kT/q; require temperature-compensated bias</Note>
+    </Bound>
+    <Bound name="InversionRegion">
+      <Note>MOSFET/BJT must stay in designated weak/strong inversion to match algebraic projections without harmonic distortion</Note>
+    </Bound>
+    <Bound name="PowerDelayProduct">
+      <Note>Latency bounded by transistor transit frequency f_T</Note>
+    </Bound>
+    <Bound name="MobilityDegradation">
+      <Note>High-frequency braiding limited by carrier velocity saturation in FinFET channels</Note>
+    </Bound>
+    <Bound name="SubthresholdLeakage">
+      <Note>Isolation switches in strong inversion or deep subthreshold to protect continuous-time charge packets</Note>
+    </Bound>
+  </SemiconductorBounds>
+
+</DAEInvertedGraph>
