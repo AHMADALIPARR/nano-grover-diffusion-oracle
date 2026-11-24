@@ -1,6 +1,6 @@
 # Nano-Grover Diffusion & Oracle Iteration Circuit
 
-Formal synthesis and verification of analog **Nano-Grover** circuits, trigonometric braid processors, SPARK contracts, Analog OpenQASM, and their quantum / digital duals.
+Formal synthesis and verification of analog **Nano-Grover** circuits, trigonometric braid processors, SPARK contracts, Analog OpenQASM, and SPICE→OpenQASM verification.
 
 ## Contents
 
@@ -15,63 +15,65 @@ Formal synthesis and verification of analog **Nano-Grover** circuits, trigonomet
 | `src/trig_processor.va` | Simple sin/cos with boundary checks |
 | `src/braid_trig_processor.va` | Minimal Metatron φ processor |
 
-### Digital RTL (SystemVerilog) — Flop Algorithm Source of Truth
+### Digital RTL (SystemVerilog)
 
 | File | Description |
 |------|-------------|
-| `rtl/braid_chord_flop_rom.sv` | **Source-of-truth** flip-flop ROM: pre-evaluated chord energy eigenvalues |
-| `rtl/trig_processor.sv` | Digital dual of simple sin/cos processor |
-| `rtl/trig_braid_processor.sv` | Digital dual of φ-weighted braid processor |
-| `rtl/braid_trig_processor.sv` | Minimal Metatron φ processor (RTL) |
-
-### Quantum Circuit Extensions (SystemVerilog)
-
-| File | Description |
-|------|-------------|
-| `rtl/quantum/q_braid_chord_rom.sv` | Amplitude-encoded 2-qubit look-up from chord eigenvalues |
-| `rtl/quantum/q_grover_flop_stage.sv` | Single Grover iteration in flip-flop amplitude registers |
+| `rtl/braid_chord_flop_rom.sv` | Source-of-truth flip-flop chord ROM |
+| `rtl/trig_processor.sv` / `trig_braid_processor.sv` / `braid_trig_processor.sv` | Digital trig duals |
+| `rtl/quantum/q_braid_chord_rom.sv` | Amplitude-encoded 2-qubit look-up |
+| `rtl/quantum/q_grover_flop_stage.sv` | Grover iteration in flop registers |
 
 ### Analog OpenQASM (bound to HDL)
 
 | File | Description |
 |------|-------------|
-| `openqasm/analog_grover_2q.qasm` | 2-qubit Grover ×3 → `nano_grover_triple_iteration.va` |
-| `openqasm/analog_braid_trig.qasm` | φ-braid rotation → `trig_braid_processor.va/.sv` |
-| `openqasm/analog_spatial_lattice.qasm` | Spatial CR lattice → `spatial_grover_lattice.va` |
-| `openqasm/analog_q_grover_flop.qasm` | Flop-stage Grover → `q_grover_flop_stage.sv` |
-| `openqasm/bindings/hdl_bind_table.md` | Full OpenQASM ↔ HDL ↔ SPARK binding table |
+| `openqasm/analog_grover_2q.qasm` | 2-qubit Grover ×3 |
+| `openqasm/analog_braid_trig.qasm` | φ-braid rotation |
+| `openqasm/analog_spatial_lattice.qasm` | Spatial CR lattice |
+| `openqasm/analog_q_grover_flop.qasm` | Flop-stage Grover |
+| `openqasm/bindings/hdl_bind_table.md` | Binding table |
 
-### Ada SPARK Contracts
+### Ada SPARK / DAE Graph
 
-| File | Description |
+| Path | Description |
 |------|-------------|
-| `spark/nano_grover_contracts.ads/.adb` | Bounded rails, oracle/diffusion, braid matrix, integrity mix |
-| `spark/braid_chord_contracts.ads/.adb` | Chord frequency look-up contracts (flop-ROM dual) |
+| `spark/` | Bounded rails, oracle/diffusion, braid, chord contracts |
+| `graph/dae_inverted_graph.xml` | Hierarchical SPARK→DAE inversion graph |
 
-### Inverted DAE Graph (XML)
+### spice-qasm-verifier (SPICE → MNA → OpenQASM)
 
-| File | Description |
-|------|-------------|
-| `graph/dae_inverted_graph.xml` | Tree-structured inversion of SPARK `{Pre} Cmd {Post}` into continuous DAE nodes/edges |
+| Path | Role |
+|------|------|
+| `spice-qasm-verifier/netlists/` | RC, RLC, MOSFET reference decks |
+| `spice-qasm-verifier/parser/` | Haskell netlist AST |
+| `spice-qasm-verifier/semantics/` | Lean 4 Kirchhoff, devices, MNA, stability |
+| `spice-qasm-verifier/contracts/` | WhyML stamp & discretization contracts |
+| `spice-qasm-verifier/numerical/` | Julia MNA / Hermitian embed / residual |
+| `spice-qasm-verifier/quantum/` | OpenQASM predicates & linear-system circuits |
+| `spice-qasm-verifier/calibration/` | OpenPulse control fragments |
+| `spice-qasm-verifier/verification/` | Refinement & error-bound Lean modules |
+
+Core refinement:
+
+```text
+Accept_QASM(N)  ⟹  Valid_ε(N)
+```
 
 ### Formal / Documentation
 
 - `lean/NanoGroverMarkov.lean` — Zero-dependency Lean 4 Markov verification
-- `docs/CIRCUIT_THEOREM.md` — Analytic energy & amplification theorem
-- `docs/CROSS_DOMAIN_MAPPING.md` — SPARK ↔ Verilog-A ↔ Transistor mapping
-- `docs/SPARK_TO_DAE_INVERSION.md` — Formal inversion principle and semiconductor bounds
+- `docs/CIRCUIT_THEOREM.md`, `docs/CROSS_DOMAIN_MAPPING.md`, `docs/SPARK_TO_DAE_INVERSION.md`
 
-## Cross-Domain Mapping (summary)
+## Cross-Domain Mapping
 
-| SPARK Contract    | Verilog-A              | Transistor Equivalent      |
-|-------------------|------------------------|----------------------------|
-| Bounded Integer   | Voltage Rails          | Supply clamping            |
-| State Invariant   | Steady-state nodal balance | Collector/drain equilibrium |
-| Matrix Multiplier | VCVS / Gilbert cell    | Translinear loop           |
-| Hash Integrity    | Non-linear mixing      | Exponential mixer          |
+| SPARK Contract | Verilog-A | Transistor Equivalent |
+|----------------|-----------|------------------------|
+| Bounded Integer | Voltage Rails | Supply clamping |
+| State Invariant | Steady-state nodal balance | Collector/drain equilibrium |
+| Matrix Multiplier | VCVS / Gilbert cell | Translinear loop |
+| Hash Integrity | Non-linear mixing | Exponential mixer |
 
 ## License
 
-- AGPLv3 (`LICENSE`)
-- Component covenant: `LicenseRef-Sovereign-Leviathan-SL-AGPL3-001`
-- All sources carry the SL-AGPL3-001 header.
+AGPLv3 + `LicenseRef-Sovereign-Leviathan-SL-AGPL3-001`
