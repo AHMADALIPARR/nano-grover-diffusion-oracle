@@ -1,6 +1,6 @@
 # Nano-Grover Diffusion & Oracle Iteration Circuit
 
-Formal synthesis and verification of analog **Nano-Grover** circuits, trigonometric braid processors, SPARK contracts, and their quantum / digital duals.
+Formal synthesis and verification of analog **Nano-Grover** circuits, trigonometric braid processors, SPARK contracts, Analog OpenQASM, and their quantum / digital duals.
 
 ## Contents
 
@@ -24,12 +24,22 @@ Formal synthesis and verification of analog **Nano-Grover** circuits, trigonomet
 | `rtl/trig_braid_processor.sv` | Digital dual of φ-weighted braid processor |
 | `rtl/braid_trig_processor.sv` | Minimal Metatron φ processor (RTL) |
 
-### Quantum Circuit Extensions
+### Quantum Circuit Extensions (SystemVerilog)
 
 | File | Description |
 |------|-------------|
 | `rtl/quantum/q_braid_chord_rom.sv` | Amplitude-encoded 2-qubit look-up from chord eigenvalues |
 | `rtl/quantum/q_grover_flop_stage.sv` | Single Grover iteration in flip-flop amplitude registers |
+
+### Analog OpenQASM (bound to HDL)
+
+| File | Description |
+|------|-------------|
+| `openqasm/analog_grover_2q.qasm` | 2-qubit Grover ×3 → `nano_grover_triple_iteration.va` |
+| `openqasm/analog_braid_trig.qasm` | φ-braid rotation → `trig_braid_processor.va/.sv` |
+| `openqasm/analog_spatial_lattice.qasm` | Spatial CR lattice → `spatial_grover_lattice.va` |
+| `openqasm/analog_q_grover_flop.qasm` | Flop-stage Grover → `q_grover_flop_stage.sv` |
+| `openqasm/bindings/hdl_bind_table.md` | Full OpenQASM ↔ HDL ↔ SPARK binding table |
 
 ### Ada SPARK Contracts
 
