@@ -4,264 +4,364 @@
   SPDX-License-Identifier: LicenseRef-Sovereign-Leviathan-SL-AGPL3-001
   Main project policy: LICENSES/LicenseRef-Sovereign-Leviathan-SL-AGPL3-001.txt.
 
-  Inverted DAE Graph
-  ------------------
-  Formal inversion of SPARK contracts {Pre(S)} Cmd {Post(S,S')}
+  Refined Inverted DAE Graph  v1.1
+  --------------------------------
+  Hierarchical tree inversion of SPARK contracts
+      {Pre(S)}  Cmd  {Post(S, S')}
   into a continuous-time Differential-Algebraic Equation system.
 
-  Node kinds:
-    - state     : continuous voltage / amplitude state variable
-    - algebraic : constraint (KCL / KVL / mean bus)
-    - rail      : physical clamping bound (maps Bounded Integer)
-    - contract  : SPARK pre/post predicate attached to a transition
-
-  Edge kinds:
-    - ddt       : differential contribution (C·dV/dt)
-    - idt       : integral contribution (L·idt)
-    - kcl       : Kirchhoff current law balance
-    - kvl       : Kirchhoff voltage law loop
-    - map       : discrete-to-continuous invariant mapping
-    - clamp     : hard rail / saturation limit
+  Layer order (top → bottom):
+    1. Parameters          — constants & physical bounds
+    2. Rails               — supply clamps (Bounded Integer image)
+    3. Contracts           — SPARK Pre/Cmd/Post anchors
+    4. StateVariables      — differential unknowns V(t)
+    5. AlgebraicVariables  — constraint unknowns (mean, currents)
+    6. Dynamics            — ddt / idt / KCL / KVL / map / clamp edges
+    7. CrossDomain         — SPARK ↔ Verilog-A ↔ Transistor table
+    8. SemiconductorBounds — device-physics ceilings
 -->
 
 <DAEInvertedGraph
-    xmlns="urn:sovereign:nano-grover:dae-graph:1.0"
+    xmlns="urn:sovereign:nano-grover:dae-graph:1.1"
     name="NanoGrover_Braid_DAE"
-    version="1.0"
-    inversionPrinciple="SPARK_PrePost_to_Continuous_Attractors">
+    version="1.1"
+    inversionPrinciple="SPARK_PrePost_to_Continuous_Attractors"
+    N="4"
+    targetIndex="3">
 
-  <!-- ============================================================ -->
-  <!-- 1. State nodes (continuous voltages / amplitudes)            -->
-  <!-- ============================================================ -->
-  <Nodes>
+  <!-- ================================================================ -->
+  <!-- 1. Parameters                                                    -->
+  <!-- ================================================================ -->
+  <Parameters>
+    <Param id="V0_scale"   type="real" unit="V"     value="1.0"/>
+    <Param id="Cnode"      type="real" unit="F"     value="1.0e-12"/>
+    <Param id="Lnode"      type="real" unit="H"     value="1.0e-9"/>
+    <Param id="Rndr"       type="real" unit="Ohm"   value="1.0e3"/>
+    <Param id="Gm"         type="real" unit="S"     value="1.0e-3"/>
+    <Param id="eps"        type="real" unit="1"     value="1.0e-6"/>
+    <Param id="omega0"     type="real" unit="rad/s" value="1.0e9"/>
+    <Param id="Delta_t"    type="real" unit="s"     value="1.57079632679e-9"/>
+    <Param id="PHI_HALF"   type="real" unit="1"     value="0.8090169943749474"/>
+    <Param id="V_T"        type="real" unit="mV"    value="25.85"/>
+    <Param id="VDD_nom"    type="real" unit="V"     value="1.8"/>
+    <Param id="VSS_nom"    type="real" unit="V"     value="0.0"/>
+  </Parameters>
 
-    <Node id="V0" kind="state" domain="voltage">
-      <Label>Basis amplitude |00⟩ / node 0</Label>
-      <InitialCharge mapsFrom="Pre(S)">0.5</InitialCharge>
-      <Attractor mapsTo="Post(S,S')">steady-state after diffusion</Attractor>
-      <Bound rail="Voltage_Rail" min="0.0" max="1.8"/>
-    </Node>
+  <!-- ================================================================ -->
+  <!-- 2. Rails  (SPARK Bounded Integer → physical supply clamps)       -->
+  <!-- ================================================================ -->
+  <Rails>
+    <Rail id="RAIL_VDD"
+          polarity="positive"
+          valueRef="VDD_nom"
+          mapsFrom="Voltage_Rail'Last"
+          role="upper_clamp"/>
+    <Rail id="RAIL_VSS"
+          polarity="negative"
+          valueRef="VSS_nom"
+          mapsFrom="Voltage_Rail'First"
+          role="lower_clamp"/>
+  </Rails>
 
-    <Node id="V1" kind="state" domain="voltage">
-      <Label>Basis amplitude |01⟩ / node 1</Label>
-      <InitialCharge mapsFrom="Pre(S)">0.5</InitialCharge>
-      <Attractor mapsTo="Post(S,S')">steady-state after diffusion</Attractor>
-      <Bound rail="Voltage_Rail" min="0.0" max="1.8"/>
-    </Node>
+  <!-- ================================================================ -->
+  <!-- 3. Contracts  (SPARK Pre / Cmd / Post anchors)                   -->
+  <!-- ================================================================ -->
+  <Contracts>
 
-    <Node id="V2" kind="state" domain="voltage">
-      <Label>Basis amplitude |10⟩ / node 2</Label>
-      <InitialCharge mapsFrom="Pre(S)">0.5</InitialCharge>
-      <Attractor mapsTo="Post(S,S')">steady-state after diffusion</Attractor>
-      <Bound rail="Voltage_Rail" min="0.0" max="1.8"/>
-    </Node>
+    <Contract id="CTRCT_Oracle" procedure="Grover_Oracle_Flip">
+      <Pre>
+        <Predicate>for all I in Amplitude_Index => V(I) in Voltage_Rail</Predicate>
+      </Pre>
+      <Cmd>sign-flip of target coordinate (phase inversion)</Cmd>
+      <Post>
+        <Predicate>V(Target) = -V'Old(Target)</Predicate>
+        <Predicate>for all I /= Target => V(I) = V'Old(I)</Predicate>
+        <Predicate>for all I => V(I) in Voltage_Rail</Predicate>
+      </Post>
+      <Inversion>
+        <PreMapsTo>InitialCharge on target branch</PreMapsTo>
+        <PostMapsTo>Attractor after NDR interval</PostMapsTo>
+        <AssertFailMapsTo>RAIL_VDD / RAIL_VSS clamp</AssertFailMapsTo>
+      </Inversion>
+    </Contract>
 
-    <Node id="V3" kind="state" domain="voltage">
-      <Label>Basis amplitude |11⟩ / node 3 (default target ω)</Label>
-      <InitialCharge mapsFrom="Pre(S)">0.5</InitialCharge>
-      <Attractor mapsTo="Post(S,S')">amplified |Vω|² ≥ 1 − 1/N</Attractor>
-      <Bound rail="Voltage_Rail" min="0.0" max="1.8"/>
-    </Node>
+    <Contract id="CTRCT_Diffusion" procedure="Grover_Diffusion">
+      <Pre>
+        <Predicate>for all I in Amplitude_Index => V(I) in Voltage_Rail</Predicate>
+      </Pre>
+      <Cmd>V ← 2·Vbar − V   (inversion about the mean)</Cmd>
+      <Post>
+        <Predicate>for all I => V(I) in Voltage_Rail</Predicate>
+        <Predicate>nodal balance  dV/dt → 0 on Poincaré section</Predicate>
+      </Post>
+      <Inversion>
+        <PreMapsTo>State entering diffusion window</PreMapsTo>
+        <PostMapsTo>Steady-state attractor after mean reflection</PostMapsTo>
+        <AssertFailMapsTo>RAIL_VDD / RAIL_VSS clamp</AssertFailMapsTo>
+      </Inversion>
+    </Contract>
 
-    <Node id="Vbar" kind="algebraic" domain="voltage">
-      <Label>Ensemble mean  V̄ = (1/N) Σ Vk</Label>
-      <Equation>Vbar = (V0 + V1 + V2 + V3) / 4.0</Equation>
-    </Node>
+    <Contract id="CTRCT_Braid" procedure="Braid_Matrix_Multiply">
+      <Pre>
+        <Predicate>Theta in -π .. π</Predicate>
+      </Pre>
+      <Cmd>φ-weighted linear combination of sin(θ), cos(θ)</Cmd>
+      <Post>
+        <Predicate>Sin_O in Voltage_Rail</Predicate>
+        <Predicate>Cos_O in Voltage_Rail</Predicate>
+      </Post>
+      <Inversion>
+        <PreMapsTo>Bounded angle domain on Theta</PreMapsTo>
+        <PostMapsTo>Clamped Sin_O / Cos_O rails</PostMapsTo>
+        <AssertFailMapsTo>RAIL_VDD / RAIL_VSS clamp</AssertFailMapsTo>
+      </Inversion>
+    </Contract>
 
-    <Node id="I_NDR_3" kind="state" domain="current">
-      <Label>Oracle NDR current on target branch</Label>
-      <Equation>I = (1/Rndr)·(−1.5·V3 + 0.5·V3³/V0²)</Equation>
-    </Node>
+    <Contract id="CTRCT_Chord" procedure="Chord_Lookup">
+      <Pre>
+        <Predicate>Sel in Chord_Id (0 .. 2)</Predicate>
+      </Pre>
+      <Cmd>case Sel → frequency word</Cmd>
+      <Post>
+        <Predicate>Valid = True ∧ Freq in {Root, Third, Fifth}</Predicate>
+      </Post>
+      <Inversion>
+        <PreMapsTo>Discrete select lines</PreMapsTo>
+        <PostMapsTo>Static eigenvalue ROM word</PostMapsTo>
+      </Inversion>
+    </Contract>
 
-    <Node id="Theta" kind="state" domain="angle">
-      <Label>Braid phase θ</Label>
-      <Bound min="-π" max="π" mapsFrom="Bounded Integer Range"/>
-    </Node>
+  </Contracts>
 
-    <Node id="Sin_O" kind="state" domain="voltage">
-      <Label>φ-weighted sin output</Label>
-      <Bound rail="Voltage_Rail" min="0.0" max="1.8"/>
-    </Node>
+  <!-- ================================================================ -->
+  <!-- 4. State variables  (differential unknowns)                      -->
+  <!-- ================================================================ -->
+  <StateVariables>
 
-    <Node id="Cos_O" kind="state" domain="voltage">
-      <Label>φ-weighted cos output</Label>
-      <Bound rail="Voltage_Rail" min="0.0" max="1.8"/>
-    </Node>
+    <Group id="BasisAmplitudes" dimension="4" basis="computational">
 
-    <!-- Physical rails (SPARK Bounded Integer → Supply clamping) -->
-    <Node id="RAIL_VDD" kind="rail" domain="supply">
-      <Label>Positive supply rail</Label>
-      <Value>1.8</Value>
-      <MapsFrom contract="Voltage_Rail'Last"/>
-    </Node>
+      <State id="V0" domain="voltage" unit="V" index="0" ket="|00⟩">
+        <InitialCharge mapsFromContract="CTRCT_Oracle" role="Pre">0.5</InitialCharge>
+        <Attractor     mapsFromContract="CTRCT_Diffusion" role="Post">
+          steady-state after diffusion
+        </Attractor>
+        <Bound minRef="RAIL_VSS" maxRef="RAIL_VDD"/>
+      </State>
 
-    <Node id="RAIL_GND" kind="rail" domain="supply">
-      <Label>Ground / zero rail</Label>
-      <Value>0.0</Value>
-      <MapsFrom contract="Voltage_Rail'First"/>
-    </Node>
+      <State id="V1" domain="voltage" unit="V" index="1" ket="|01⟩">
+        <InitialCharge mapsFromContract="CTRCT_Oracle" role="Pre">0.5</InitialCharge>
+        <Attractor     mapsFromContract="CTRCT_Diffusion" role="Post">
+          steady-state after diffusion
+        </Attractor>
+        <Bound minRef="RAIL_VSS" maxRef="RAIL_VDD"/>
+      </State>
 
-    <!-- SPARK contract anchor nodes -->
-    <Node id="CTRCT_Oracle" kind="contract">
-      <Label>Grover_Oracle_Flip Pre/Post</Label>
-      <Pre>for all I =&gt; V(I) in Voltage_Rail</Pre>
-      <Post>V(Target) = −V'Old(Target) ∧ others unchanged ∧ still in Voltage_Rail</Post>
-      <Cmd>sign-flip on target coordinate</Cmd>
-    </Node>
+      <State id="V2" domain="voltage" unit="V" index="2" ket="|10⟩">
+        <InitialCharge mapsFromContract="CTRCT_Oracle" role="Pre">0.5</InitialCharge>
+        <Attractor     mapsFromContract="CTRCT_Diffusion" role="Post">
+          steady-state after diffusion
+        </Attractor>
+        <Bound minRef="RAIL_VSS" maxRef="RAIL_VDD"/>
+      </State>
 
-    <Node id="CTRCT_Diffusion" kind="contract">
-      <Label>Grover_Diffusion Pre/Post</Label>
-      <Pre>for all I =&gt; V(I) in Voltage_Rail</Pre>
-      <Post>for all I =&gt; V(I) in Voltage_Rail  (nodal balance dV/dt → 0)</Post>
-      <Cmd>V ← 2·Vbar − V</Cmd>
-    </Node>
+      <State id="V3" domain="voltage" unit="V" index="3" ket="|11⟩" isTarget="true">
+        <InitialCharge mapsFromContract="CTRCT_Oracle" role="Pre">0.5</InitialCharge>
+        <Attractor     mapsFromContract="CTRCT_Diffusion" role="Post">
+          amplified |Vω|² ≥ 1 − 1/N
+        </Attractor>
+        <Bound minRef="RAIL_VSS" maxRef="RAIL_VDD"/>
+      </State>
 
-    <Node id="CTRCT_Braid" kind="contract">
-      <Label>Braid_Matrix_Multiply Pre/Post</Label>
-      <Pre>Theta in −π .. π</Pre>
-      <Post>Sin_O in Voltage_Rail ∧ Cos_O in Voltage_Rail</Post>
-      <Cmd>φ-weighted linear combination</Cmd>
-    </Node>
+    </Group>
 
-  </Nodes>
+    <Group id="BraidPhase" dimension="1">
+      <State id="Theta" domain="angle" unit="rad">
+        <Bound min="-3.14159265359" max="3.14159265359"
+               mapsFromContract="CTRCT_Braid" role="Pre"/>
+      </State>
+    </Group>
 
-  <!-- ============================================================ -->
-  <!-- 2. Edges (DAE structure + invariant mappings)                -->
-  <!-- ============================================================ -->
-  <Edges>
+    <Group id="BraidOutputs" dimension="2">
+      <State id="Sin_O" domain="voltage" unit="V">
+        <Attractor mapsFromContract="CTRCT_Braid" role="Post">φ-weighted sin</Attractor>
+        <Bound minRef="RAIL_VSS" maxRef="RAIL_VDD"/>
+      </State>
+      <State id="Cos_O" domain="voltage" unit="V">
+        <Attractor mapsFromContract="CTRCT_Braid" role="Post">φ-weighted cos</Attractor>
+        <Bound minRef="RAIL_VSS" maxRef="RAIL_VDD"/>
+      </State>
+    </Group>
 
-    <!-- Capacitive ddt edges -->
-    <Edge id="e_ddt0" kind="ddt" from="V0" to="V0">
-      <Contribution>Cnode · ddt(V0)</Contribution>
-    </Edge>
-    <Edge id="e_ddt1" kind="ddt" from="V1" to="V1">
-      <Contribution>Cnode · ddt(V1)</Contribution>
-    </Edge>
-    <Edge id="e_ddt2" kind="ddt" from="V2" to="V2">
-      <Contribution>Cnode · ddt(V2)</Contribution>
-    </Edge>
-    <Edge id="e_ddt3" kind="ddt" from="V3" to="V3">
-      <Contribution>Cnode · ddt(V3)</Contribution>
-    </Edge>
+  </StateVariables>
 
-    <!-- Inductive idt edges -->
-    <Edge id="e_idt0" kind="idt" from="V0" to="V0">
-      <Contribution>idt(−V0 / Lnode)</Contribution>
-    </Edge>
-    <Edge id="e_idt1" kind="idt" from="V1" to="V1">
-      <Contribution>idt(−V1 / Lnode)</Contribution>
-    </Edge>
-    <Edge id="e_idt2" kind="idt" from="V2" to="V2">
-      <Contribution>idt(−V2 / Lnode)</Contribution>
-    </Edge>
-    <Edge id="e_idt3" kind="idt" from="V3" to="V3">
-      <Contribution>idt(−V3 / Lnode)</Contribution>
-    </Edge>
+  <!-- ================================================================ -->
+  <!-- 5. Algebraic variables  (constraint unknowns)                    -->
+  <!-- ================================================================ -->
+  <AlgebraicVariables>
 
-    <!-- Mean bus algebraic edges (KCL star) -->
-    <Edge id="e_mean0" kind="kcl" from="V0" to="Vbar"/>
-    <Edge id="e_mean1" kind="kcl" from="V1" to="Vbar"/>
-    <Edge id="e_mean2" kind="kcl" from="V2" to="Vbar"/>
-    <Edge id="e_mean3" kind="kcl" from="V3" to="Vbar"/>
+    <Algebraic id="Vbar" domain="voltage" unit="V" role="ensemble_mean">
+      <Equation>
+        Vbar = (V0 + V1 + V2 + V3) / 4.0
+      </Equation>
+      <DependsOn>V0 V1 V2 V3</DependsOn>
+    </Algebraic>
 
-    <!-- Oracle NDR on target -->
-    <Edge id="e_ndr" kind="kcl" from="I_NDR_3" to="V3">
-      <Contribution>cubic NDR phase inversion</Contribution>
-    </Edge>
+    <Algebraic id="I_NDR_3" domain="current" unit="A" role="oracle_ndr">
+      <Equation>
+        I_NDR_3 = (1/Rndr) * (-1.5*V3 + 0.5*(V3*V3*V3)/(V0_scale*V0_scale))
+      </Equation>
+      <DependsOn>V3 Rndr V0_scale</DependsOn>
+      <ContractRef>CTRCT_Oracle</ContractRef>
+    </Algebraic>
 
-    <!-- Diffusion reflection (post-condition attractor) -->
-    <Edge id="e_diff0" kind="map" from="Vbar" to="V0">
-      <Contribution>V0 ← 2·Vbar − V0</Contribution>
-      <ContractRef>CTRCT_Diffusion</ContractRef>
-    </Edge>
-    <Edge id="e_diff1" kind="map" from="Vbar" to="V1">
-      <Contribution>V1 ← 2·Vbar − V1</Contribution>
-      <ContractRef>CTRCT_Diffusion</ContractRef>
-    </Edge>
-    <Edge id="e_diff2" kind="map" from="Vbar" to="V2">
-      <Contribution>V2 ← 2·Vbar − V2</Contribution>
-      <ContractRef>CTRCT_Diffusion</ContractRef>
-    </Edge>
-    <Edge id="e_diff3" kind="map" from="Vbar" to="V3">
-      <Contribution>V3 ← 2·Vbar − V3</Contribution>
-      <ContractRef>CTRCT_Diffusion</ContractRef>
-    </Edge>
+  </AlgebraicVariables>
 
-    <!-- Oracle contract attachment -->
-    <Edge id="e_oracle" kind="map" from="CTRCT_Oracle" to="V3">
-      <Contribution>sign flip on target</Contribution>
-    </Edge>
+  <!-- ================================================================ -->
+  <!-- 6. Dynamics  (typed edges of the DAE graph)                      -->
+  <!-- ================================================================ -->
+  <Dynamics>
 
-    <!-- Braid trigonometric path -->
-    <Edge id="e_braid_sin" kind="map" from="Theta" to="Sin_O">
-      <Contribution>PHI_HALF·sin(θ) + 0.5·cos(θ)</Contribution>
-      <ContractRef>CTRCT_Braid</ContractRef>
-    </Edge>
-    <Edge id="e_braid_cos" kind="map" from="Theta" to="Cos_O">
-      <Contribution>0.5·sin(θ) − PHI_HALF·cos(θ)</Contribution>
-      <ContractRef>CTRCT_Braid</ContractRef>
-    </Edge>
+    <!-- 6.1 Capacitive branches  C·ddt(V) -->
+    <Section id="Capacitive" kind="ddt">
+      <Edge id="e_ddt0" from="V0" to="V0" paramRef="Cnode">
+        <Term>Cnode * ddt(V0)</Term>
+      </Edge>
+      <Edge id="e_ddt1" from="V1" to="V1" paramRef="Cnode">
+        <Term>Cnode * ddt(V1)</Term>
+      </Edge>
+      <Edge id="e_ddt2" from="V2" to="V2" paramRef="Cnode">
+        <Term>Cnode * ddt(V2)</Term>
+      </Edge>
+      <Edge id="e_ddt3" from="V3" to="V3" paramRef="Cnode">
+        <Term>Cnode * ddt(V3)</Term>
+      </Edge>
+    </Section>
 
-    <!-- Hard clamping rails (assertion failure → physical limit) -->
-    <Edge id="e_clamp_hi0" kind="clamp" from="RAIL_VDD" to="V0"/>
-    <Edge id="e_clamp_lo0" kind="clamp" from="RAIL_GND" to="V0"/>
-    <Edge id="e_clamp_hi1" kind="clamp" from="RAIL_VDD" to="V1"/>
-    <Edge id="e_clamp_lo1" kind="clamp" from="RAIL_GND" to="V1"/>
-    <Edge id="e_clamp_hi2" kind="clamp" from="RAIL_VDD" to="V2"/>
-    <Edge id="e_clamp_lo2" kind="clamp" from="RAIL_GND" to="V2"/>
-    <Edge id="e_clamp_hi3" kind="clamp" from="RAIL_VDD" to="V3"/>
-    <Edge id="e_clamp_lo3" kind="clamp" from="RAIL_GND" to="V3"/>
-    <Edge id="e_clamp_sin" kind="clamp" from="RAIL_VDD" to="Sin_O"/>
-    <Edge id="e_clamp_cos" kind="clamp" from="RAIL_VDD" to="Cos_O"/>
+    <!-- 6.2 Inductive branches  idt(-V/L) -->
+    <Section id="Inductive" kind="idt">
+      <Edge id="e_idt0" from="V0" to="V0" paramRef="Lnode">
+        <Term>idt(-V0 / Lnode)</Term>
+      </Edge>
+      <Edge id="e_idt1" from="V1" to="V1" paramRef="Lnode">
+        <Term>idt(-V1 / Lnode)</Term>
+      </Edge>
+      <Edge id="e_idt2" from="V2" to="V2" paramRef="Lnode">
+        <Term>idt(-V2 / Lnode)</Term>
+      </Edge>
+      <Edge id="e_idt3" from="V3" to="V3" paramRef="Lnode">
+        <Term>idt(-V3 / Lnode)</Term>
+      </Edge>
+    </Section>
 
-  </Edges>
+    <!-- 6.3 Mean-bus KCL star -->
+    <Section id="MeanBus" kind="kcl">
+      <Edge id="e_mean0" from="V0"   to="Vbar"/>
+      <Edge id="e_mean1" from="V1"   to="Vbar"/>
+      <Edge id="e_mean2" from="V2"   to="Vbar"/>
+      <Edge id="e_mean3" from="V3"   to="Vbar"/>
+    </Section>
 
-  <!-- ============================================================ -->
-  <!-- 3. Cross-domain mapping table (embedded for traceability)    -->
-  <!-- ============================================================ -->
+    <!-- 6.4 Oracle NDR injection -->
+    <Section id="OracleNDR" kind="kcl" contractRef="CTRCT_Oracle">
+      <Edge id="e_ndr" from="I_NDR_3" to="V3">
+        <Term>cubic NDR phase inversion on target</Term>
+      </Edge>
+    </Section>
+
+    <!-- 6.5 Diffusion reflection maps -->
+    <Section id="DiffusionMap" kind="map" contractRef="CTRCT_Diffusion">
+      <Edge id="e_diff0" from="Vbar" to="V0">
+        <Term>V0 := 2*Vbar - V0</Term>
+      </Edge>
+      <Edge id="e_diff1" from="Vbar" to="V1">
+        <Term>V1 := 2*Vbar - V1</Term>
+      </Edge>
+      <Edge id="e_diff2" from="Vbar" to="V2">
+        <Term>V2 := 2*Vbar - V2</Term>
+      </Edge>
+      <Edge id="e_diff3" from="Vbar" to="V3">
+        <Term>V3 := 2*Vbar - V3</Term>
+      </Edge>
+    </Section>
+
+    <!-- 6.6 Braid trigonometric maps -->
+    <Section id="BraidMap" kind="map" contractRef="CTRCT_Braid">
+      <Edge id="e_braid_sin" from="Theta" to="Sin_O" paramRef="PHI_HALF">
+        <Term>Sin_O := PHI_HALF*sin(Theta) + 0.5*cos(Theta)</Term>
+      </Edge>
+      <Edge id="e_braid_cos" from="Theta" to="Cos_O" paramRef="PHI_HALF">
+        <Term>Cos_O := 0.5*sin(Theta) - PHI_HALF*cos(Theta)</Term>
+      </Edge>
+    </Section>
+
+    <!-- 6.7 Hard clamps (assertion failure → physical rail) -->
+    <Section id="Clamps" kind="clamp">
+      <Edge id="e_clamp_hi0" from="RAIL_VDD" to="V0"   direction="upper"/>
+      <Edge id="e_clamp_lo0" from="RAIL_VSS" to="V0"   direction="lower"/>
+      <Edge id="e_clamp_hi1" from="RAIL_VDD" to="V1"   direction="upper"/>
+      <Edge id="e_clamp_lo1" from="RAIL_VSS" to="V1"   direction="lower"/>
+      <Edge id="e_clamp_hi2" from="RAIL_VDD" to="V2"   direction="upper"/>
+      <Edge id="e_clamp_lo2" from="RAIL_VSS" to="V2"   direction="lower"/>
+      <Edge id="e_clamp_hi3" from="RAIL_VDD" to="V3"   direction="upper"/>
+      <Edge id="e_clamp_lo3" from="RAIL_VSS" to="V3"   direction="lower"/>
+      <Edge id="e_clamp_sin" from="RAIL_VDD" to="Sin_O" direction="upper"/>
+      <Edge id="e_clamp_cos" from="RAIL_VDD" to="Cos_O" direction="upper"/>
+      <Edge id="e_clamp_sin_lo" from="RAIL_VSS" to="Sin_O" direction="lower"/>
+      <Edge id="e_clamp_cos_lo" from="RAIL_VSS" to="Cos_O" direction="lower"/>
+    </Section>
+
+  </Dynamics>
+
+  <!-- ================================================================ -->
+  <!-- 7. Cross-domain mapping table                                    -->
+  <!-- ================================================================ -->
   <CrossDomainMappings>
-    <Mapping>
+    <Mapping id="m_bound">
       <SPARK>Bounded Integer Range (0 ≤ v ≤ N)</SPARK>
       <VerilogA>Voltage Rails (0 V to V_dd)</VerilogA>
       <Transistor>Supply clamping and saturation limits</Transistor>
+      <GraphRef>Rails / Bound elements</GraphRef>
     </Mapping>
-    <Mapping>
+    <Mapping id="m_invariant">
       <SPARK>State Invariant (Post(S, S'))</SPARK>
       <VerilogA>Steady-state nodal balance (dV/dt = 0)</VerilogA>
       <Transistor>Equilibrium collector/drain current balance</Transistor>
+      <GraphRef>Attractor elements / DiffusionMap section</GraphRef>
     </Mapping>
-    <Mapping>
+    <Mapping id="m_matrix">
       <SPARK>Matrix Multiplier (ρ(σ_k))</SPARK>
       <VerilogA>Linear VCVS</VerilogA>
       <Transistor>Gilbert cell / Translinear multiplier core</Transistor>
+      <GraphRef>BraidMap section</GraphRef>
     </Mapping>
-    <Mapping>
+    <Mapping id="m_hash">
       <SPARK>FNV-1a / Hash Integrity</SPARK>
       <VerilogA>Non-linear mixing stage</VerilogA>
       <Transistor>Cross-coupled mixer core with exponential response</Transistor>
+      <GraphRef>OracleNDR section (cubic non-linearity)</GraphRef>
     </Mapping>
   </CrossDomainMappings>
 
-  <!-- ============================================================ -->
-  <!-- 4. Semiconductor bound annotations                           -->
-  <!-- ============================================================ -->
+  <!-- ================================================================ -->
+  <!-- 8. Semiconductor bounds                                          -->
+  <!-- ================================================================ -->
   <SemiconductorBounds>
-    <Bound name="ThermalVoltage">
-      <Symbol>V_T</Symbol>
+    <Bound id="ThermalVoltage" paramRef="V_T">
+      <Symbol>V_T = kT/q</Symbol>
       <Value unit="mV">25.85</Value>
-      <Note>Translinear loops constrained by kT/q; require temperature-compensated bias</Note>
+      <Constraint>Translinear loops require temperature-compensated bias</Constraint>
     </Bound>
-    <Bound name="InversionRegion">
-      <Note>MOSFET/BJT must stay in designated weak/strong inversion to match algebraic projections without harmonic distortion</Note>
+    <Bound id="InversionRegion">
+      <Constraint>MOSFET/BJT remain in designated weak/strong inversion to avoid harmonic distortion of algebraic projections</Constraint>
     </Bound>
-    <Bound name="PowerDelayProduct">
-      <Note>Latency bounded by transistor transit frequency f_T</Note>
+    <Bound id="PowerDelayProduct">
+      <Constraint>Execution latency bounded by transistor transit frequency f_T</Constraint>
     </Bound>
-    <Bound name="MobilityDegradation">
-      <Note>High-frequency braiding limited by carrier velocity saturation in FinFET channels</Note>
+    <Bound id="MobilityDegradation">
+      <Constraint>High-frequency braiding limited by carrier velocity saturation in FinFET channels; g_m degrades at high E-field</Constraint>
     </Bound>
-    <Bound name="SubthresholdLeakage">
-      <Note>Isolation switches in strong inversion or deep subthreshold to protect continuous-time charge packets</Note>
+    <Bound id="SubthresholdLeakage">
+      <Constraint>Isolation switches operate in strong inversion or deep subthreshold to protect continuous-time charge packets</Constraint>
     </Bound>
   </SemiconductorBounds>
 
