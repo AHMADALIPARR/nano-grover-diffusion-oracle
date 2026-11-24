@@ -1,0 +1,24 @@
+License-ID: SL-AGPL3-001
+Covenant-Version: 1.0
+SPDX-License-Identifier: LicenseRef-Sovereign-Leviathan-SL-AGPL3-001
+
+This component is licensed under the GNU Affero General Public License v3.0
+(AGPLv3) with the following project-specific covenant terms:
+
+1. Source Availability
+   All corresponding source, including Verilog-A netlists, Lean formalizations,
+   and supporting documentation, must remain publicly available under AGPLv3
+   for any distributed or network-accessible instantiation of this work.
+
+2. Attribution
+   The License-ID and Covenant-Version headers must be preserved in all copies
+   and substantial portions of the source.
+
+3. Compatibility
+   This license is intended to be compatible with AGPLv3. In case of conflict,
+   the AGPLv3 terms control except where the covenant imposes stricter source-
+   availability or attribution requirements.
+
+Full AGPLv3 text: https://www.gnu.org/licenses/agpl-3.0.html
+
+Copyright (C) 2026 AHMAD ALI PARR / Sovereign Circuit Fabric project lineage.
