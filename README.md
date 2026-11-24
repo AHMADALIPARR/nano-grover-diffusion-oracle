@@ -1,34 +1,53 @@
 # Nano-Grover Diffusion & Oracle Iteration Circuit
 
-Formal synthesis and verification of an analog **Nano-Grover Diffusion & Oracle Iteration Circuit** (`nano_grover_core.va`).
+Formal synthesis and verification of analog **Nano-Grover** circuits, trigonometric braid processors, and their quantum / digital duals.
 
 ## Contents
 
-### Part 1 — Circuit Architecture & Verilog-A Netlists
+### Analog (Verilog-A)
 
 | File | Description |
 |------|-------------|
-| `src/nano_grover_core.va` | Continuous-time analog Nano-Grover diffusion & oracle core (parameterized N ≥ 8) |
-| `src/nano_grover_triple_iteration.va` | 2-qubit (N=4) triple-iteration Grover with collapse |
-| `src/spatial_grover_lattice.va` | Spatial quantum lattice 2-qubit coupling model (microwave / cross-resonance) |
-| `src/trig_braid_processor.va` | Trigonometric braid processor (φ-scaled sin/cos) |
-| `src/trig_processor.va` | Basic trigonometric processor with boundary checks |
+| `src/nano_grover_core.va` | Continuous-time Nano-Grover diffusion & oracle core (N ≥ 8) |
+| `src/nano_grover_triple_iteration.va` | 2-qubit triple-iteration Grover with collapse |
+| `src/spatial_grover_lattice.va` | Spatial 2-qubit microwave / cross-resonance lattice |
+| `src/trig_braid_processor.va` | Full φ-weighted braid matrix ρ(σ₁) with bounds |
+| `src/trig_processor.va` | Simple sin/cos with boundary checks |
+| `src/braid_trig_processor.va` | Minimal Metatron φ processor |
 
-### Part 2 — Formal Verification
+### Digital RTL (SystemVerilog) — Flop Algorithm Source of Truth
 
-- `lean/NanoGroverMarkov.lean` — Zero-dependency Lean 4 Markov-chain formalization with recursive tactical proofs (no Mathlib, no Lake, no reduction calculi, no `sorry`/`admit`).
-- `docs/CIRCUIT_THEOREM.md` — Analytic energy-conservation and amplitude-amplification theorem.
+| File | Description |
+|------|-------------|
+| `rtl/braid_chord_flop_rom.sv` | **Source-of-truth** flip-flop ROM: pre-evaluated chord energy eigenvalues |
+| `rtl/trig_processor.sv` | Digital dual of simple sin/cos processor |
+| `rtl/trig_braid_processor.sv` | Digital dual of φ-weighted braid processor |
+| `rtl/braid_trig_processor.sv` | Minimal Metatron φ processor (RTL) |
 
-## Constraints Observed
+### Quantum Circuit Extensions
 
-- Zero high-level abstractions.
-- Zero external library imports.
-- Zero `sorry` / `admit` / axioms.
-- Every proof state transition driven by explicit atomic Lean 4 tactics.
-- Markovian state-transition semantics only.
+| File | Description |
+|------|-------------|
+| `rtl/quantum/q_braid_chord_rom.sv` | Amplitude-encoded 2-qubit look-up from chord eigenvalues |
+| `rtl/quantum/q_grover_flop_stage.sv` | Single Grover iteration in flip-flop amplitude registers |
+
+### Formal / Documentation
+
+- `lean/NanoGroverMarkov.lean` — Zero-dependency Lean 4 Markov verification
+- `docs/CIRCUIT_THEOREM.md` — Analytic energy & amplification theorem
+- `docs/CROSS_DOMAIN_MAPPING.md` — SPARK ↔ Verilog-A ↔ Transistor mapping
+
+## Cross-Domain Mapping (summary)
+
+| SPARK Contract    | Verilog-A              | Transistor Equivalent      |
+|-------------------|------------------------|----------------------------|
+| Bounded Integer   | Voltage Rails          | Supply clamping            |
+| State Invariant   | Steady-state nodal balance | Collector/drain equilibrium |
+| Matrix Multiplier | VCVS / Gilbert cell    | Translinear loop           |
+| Hash Integrity    | Non-linear mixing      | Exponential mixer          |
 
 ## License
 
-- Primary: AGPLv3 (see `LICENSE`)
-- Component covenant: `LicenseRef-Sovereign-Leviathan-SL-AGPL3-001` (see `LICENSES/LicenseRef-Sovereign-Leviathan-SL-AGPL3-001.txt`)
-- All `.va` sources carry the SL-AGPL3-001 header.
+- AGPLv3 (`LICENSE`)
+- Component covenant: `LicenseRef-Sovereign-Leviathan-SL-AGPL3-001`
+- All sources carry the SL-AGPL3-001 header.
