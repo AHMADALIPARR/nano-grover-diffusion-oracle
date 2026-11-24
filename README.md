@@ -106,14 +106,6 @@ spark/nano_grover_contracts  — Voltage_Rail, Oracle_Flip, Diffusion, Braid_Mul
 spark/braid_chord_contracts  — Chord_Lookup ↔ flop ROM words
 ```
 
-$$
-\texttt{Voltage\_Rail} = [0, 1.8],
-\quad
-V_T = \frac{kT}{q} \approx 25.85\,\mathrm{mV}
-$$
-
----
-
 ## Inverted DAE Graph
 
 `graph/dae_inverted_graph.xml` v1.1 — layered tree:
@@ -1178,14 +1170,6 @@ $$
 Ax_{k+1}=r_{k+1}
 $$
 
-### Trapezoidal Integration
-
-$$
-\left(\frac{C}{h}+\frac{G}{2}\right)x_{k+1}
-=
-\left(\frac{C}{h}-\frac{G}{2}\right)x_k
-+\frac{b_k+b_{k+1}}{2}
-$$
 
 | Integrator | Global Order | Classification |
 |---|---:|---|
@@ -1494,21 +1478,6 @@ $$
 H^\dagger=H
 $$
 
-If Ax = b:
-
-$$
-H
-\begin{bmatrix}
-0\\
-x
-\end{bmatrix}
-=
-\begin{bmatrix}
-b\\
-0
-\end{bmatrix}
-$$
-
 ### Quantum Encoding Dimensions
 
 | Original Matrix | Embedded Matrix | Minimum State Qubits |
@@ -1605,11 +1574,6 @@ $$
 For independent Bernoulli measurements with n
 positive shots and confidence parameter δ:
 
-$$
-\epsilon_{\mathrm{stat}}
-=
-\sqrt{\frac{\ln(2/\delta)}{2n}}
-$$
 
 ### Error Budget
 
