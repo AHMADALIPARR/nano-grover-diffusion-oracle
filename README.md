@@ -39,13 +39,6 @@ Pre → initial charge. Post → voltage attractor. Assert-fail → rail clamp.
 **Nano-Grover DAE** — basis voltages $V_k(t)\in\mathbb{R}^{N}$, $N=2^n$:
 
 $$
-C\,\dot{\mathbf V}
-= \mathbf I_L + \mathbf I_{\mathrm{NDR}}(\mathbf V)
-+ G_m(\bar V\,\mathbf 1 - \mathbf V)
-+ O(\varepsilon^2)\,\mathbf V
-$$
-
-$$
 L\,\dot{\mathbf I}_L = -\mathbf V,
 \qquad
 \bar V = N^{-1}\sum_k V_k
