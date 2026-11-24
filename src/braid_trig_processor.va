@@ -1,0 +1,38 @@
+// License-ID: SL-AGPL3-001 | Covenant-Version: 1.0 | Project policy reference
+// SPDX-License-Identifier: LicenseRef-Sovereign-Leviathan-SL-AGPL3-001
+// Main project policy: LICENSES/LicenseRef-Sovereign-Leviathan-SL-AGPL3-001.txt.
+// Existing file, component and third-party notices and grants are preserved.
+
+`include "disciplines.vams"
+
+// =====================================================================
+// braid_trig_processor.va
+// Minimal Metatron φ processor — continuous-time dual of the RTL core.
+// =====================================================================
+
+module braid_trig_processor (theta_in, phi_sin, phi_cos, v_dd, gnd);
+    input theta_in, v_dd;
+    output phi_sin, phi_cos;
+    ground gnd;
+
+    voltage theta_in, phi_sin, phi_cos, v_dd;
+
+    parameter real PHI_HALF = 0.8090169943749474;
+    parameter real MAX_VOLTAGE = 1.8;
+    parameter real MIN_VOLTAGE = 0.0;
+
+    analog begin
+        @(initial_step) begin
+            if (V(v_dd) > 2.0 || V(v_dd) < 1.0)
+                $strobe("FATAL: Supply voltage violates safe operational domain bounds.");
+        end
+
+        V(phi_sin) <+ transition(PHI_HALF * sin(V(theta_in)), 1e-9, 1e-12);
+        V(phi_cos) <+ transition(PHI_HALF * cos(V(theta_in)), 1e-9, 1e-12);
+
+        if (V(phi_sin) > MAX_VOLTAGE || V(phi_sin) < MIN_VOLTAGE)
+            $warning("WARNING: φ-sin output saturated safety boundary.");
+        if (V(phi_cos) > MAX_VOLTAGE || V(phi_cos) < MIN_VOLTAGE)
+            $warning("WARNING: φ-cos output saturated safety boundary.");
+    end
+endmodule
