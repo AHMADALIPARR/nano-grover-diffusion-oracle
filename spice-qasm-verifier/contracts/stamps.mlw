@@ -1,0 +1,35 @@
+(* License-ID: SL-AGPL3-001
+   WhyML contracts for MNA device stamps.
+   SPARK-style Pre/Post on conductance / capacitance stamping.
+*)
+
+module Stamps
+
+  use export real.Real
+  use export real.Abs
+
+  type matrix = int -> int -> real
+  type vector = int -> real
+
+  (* Conductance stamp: G[i,i]+=g; G[j,j]+=g; G[i,j]-=g; G[j,i]-=g *)
+  val stamp_conductance (g: real) (i j: int) (G: matrix) : matrix
+    requires { g > 0.0 }
+    ensures  { result i i = G i i +. g }
+    ensures  { result j j = G j j +. g }
+    ensures  { result i j = G i j -. g }
+    ensures  { result j i = G j i -. g }
+
+  (* Capacitance stamp identical pattern into C matrix *)
+  val stamp_capacitance (c: real) (i j: int) (C: matrix) : matrix
+    requires { c > 0.0 }
+    ensures  { result i i = C i i +. c }
+    ensures  { result j j = C j j +. c }
+    ensures  { result i j = C i j -. c }
+    ensures  { result j i = C j i -. c }
+
+  (* Ohm residual contract *)
+  val ohm_residual (v i r: real) : real
+    requires { r > 0.0 }
+    ensures  { result = v -. i *. r }
+
+end

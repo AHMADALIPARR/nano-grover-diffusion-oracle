@@ -1,0 +1,8 @@
+* RC low-pass network — reference SPICE netlist
+* License-ID: SL-AGPL3-001
+
+V1 in 0 DC 1
+R1 in out 1000
+C1 out 0 1u
+.tran 1u 10m
+.end

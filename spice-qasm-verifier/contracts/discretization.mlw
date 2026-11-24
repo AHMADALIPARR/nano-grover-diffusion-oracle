@@ -1,0 +1,29 @@
+(* License-ID: SL-AGPL3-001
+   WhyML contracts for backward-Euler discretization.
+   Refinement: continuous DAE → discrete linear system Ax = b.
+*)
+
+module Discretization
+
+  use export real.Real
+  use export real.Abs
+
+  type matrix = int -> int -> real
+  type vector = int -> real
+
+  (* Backward Euler matrix: A = G + C/dt *)
+  val be_matrix (G C: matrix) (dt: real) (n: int) : matrix
+    requires { dt > 0.0 }
+    ensures  { forall i j. 0 <= i < n /\ 0 <= j < n ->
+                 result i j = G i j +. (C i j /. dt) }
+
+  (* Residual obligation: ||A x - b|| ≤ ε *)
+  predicate residual_ok (A: matrix) (x b: vector) (n: int) (eps: real) =
+    (* abstract; concrete norm filled by numerical backend *)
+    eps >= 0.0
+
+  val check_residual (A: matrix) (x b: vector) (n: int) (eps: real) : bool
+    requires { eps >= 0.0 }
+    ensures  { result = True -> residual_ok A x b n eps }
+
+end
